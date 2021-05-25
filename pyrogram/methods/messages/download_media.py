@@ -19,6 +19,7 @@
 import asyncio
 import os
 import time
+from io import IOBase
 from datetime import datetime
 from typing import Union, Optional
 
@@ -34,6 +35,7 @@ class DownloadMedia(Scaffold):
         self,
         message: Union["types.Message", str],
         file_name: str = DEFAULT_DOWNLOAD_DIR,
+        out: IOBase = None,
         block: bool = True,
         progress: callable = None,
         progress_args: tuple = ()
@@ -50,6 +52,9 @@ class DownloadMedia(Scaffold):
                 By default, all files are downloaded in the *downloads* folder in your working directory.
                 You can also specify a path for downloading files in a custom location: paths that end with "/"
                 are considered directories. All non-existent folders will be created automatically.
+
+            out (``BinaryIO``, *optional*)
+                Write to a binary file-like object instead of the downloads folder.
 
             block (``bool``, *optional*):
                 Blocks the code execution until the file has been downloaded.
@@ -78,9 +83,9 @@ class DownloadMedia(Scaffold):
                 You can either keep ``*args`` or add every single extra argument in your function signature.
 
         Returns:
-            ``str`` | ``None``: On success, the absolute path of the downloaded file is returned, otherwise, in case
-            the download failed or was deliberately stopped with :meth:`~pyrogram.Client.stop_transmission`, None is
-            returned.
+            ``str`` | ``True`` | ``None``: On success, the absolute path of the downloaded file is returned or True if
+            the downloaded file was to a file-like object, otherwise, in case the download failed or was deliberately 
+            stopped with :meth:`~pyrogram.Client.stop_transmission`, None is returned.
 
         Raises:
             ValueError: if the message doesn't contain any downloadable media
@@ -158,7 +163,7 @@ class DownloadMedia(Scaffold):
                 extension
             )
 
-        downloader = self.handle_download((file_id_obj, directory, file_name, file_size, progress, progress_args))
+        downloader = self.handle_download((file_id_obj, directory, file_name, file_size, out, progress, progress_args))
 
         if block:
             return await downloader
