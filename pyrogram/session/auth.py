@@ -110,7 +110,7 @@ class Auth:
 
                 # Step 4
                 server_nonce = res_pq.server_nonce
-                new_nonce = int.from_bytes(urandom(32), "little", signed=True)
+                new_nonce = urandom(32)
 
                 data = raw.types.PQInnerData(
                     pq=res_pq.pq,
@@ -118,7 +118,7 @@ class Auth:
                     q=q.to_bytes(4, "big"),
                     nonce=nonce,
                     server_nonce=server_nonce,
-                    new_nonce=new_nonce,
+                    new_nonce=int.from_bytes(new_nonce, "little", signed=True),
                 ).write()
 
                 sha = sha1(data).digest()
@@ -143,20 +143,17 @@ class Auth:
 
                 encrypted_answer = server_dh_params.encrypted_answer
 
-                server_nonce = server_nonce.to_bytes(16, "little", signed=True)
-                new_nonce = new_nonce.to_bytes(32, "little", signed=True)
+                server_nonce_bytes = res_pq.server_nonce.to_bytes(16, "little", signed=True)
 
                 tmp_aes_key = (
-                    sha1(new_nonce + server_nonce).digest()
-                    + sha1(server_nonce + new_nonce).digest()[:12]
+                    sha1(new_nonce + server_nonce_bytes).digest()
+                    + sha1(server_nonce_bytes + new_nonce).digest()[:12]
                 )
 
                 tmp_aes_iv = (
-                    sha1(server_nonce + new_nonce).digest()[12:]
+                    sha1(server_nonce_bytes + new_nonce).digest()[12:]
                     + sha1(new_nonce + new_nonce).digest() + new_nonce[:4]
                 )
-
-                server_nonce = int.from_bytes(server_nonce, "little", signed=True)
 
                 answer_with_hash = aes.ige256_decrypt(encrypted_answer, tmp_aes_key, tmp_aes_iv)
                 answer = answer_with_hash[20:]
@@ -203,7 +200,6 @@ class Auth:
                 # Step 7; Step 8
                 g_a = int.from_bytes(server_dh_inner_data.g_a, "big")
                 auth_key = pow(g_a, b, dh_prime).to_bytes(256, "big")
-                server_nonce = server_nonce.to_bytes(16, "little", signed=True)
 
                 # TODO: Handle errors
 
@@ -232,17 +228,15 @@ class Auth:
                 # 1st message
                 SecurityCheckMismatch.check(nonce == res_pq.nonce)
                 # 2nd message
-                server_nonce = int.from_bytes(server_nonce, "little", signed=True)
                 SecurityCheckMismatch.check(nonce == server_dh_params.nonce)
                 SecurityCheckMismatch.check(server_nonce == server_dh_params.server_nonce)
                 # 3rd message
                 SecurityCheckMismatch.check(nonce == set_client_dh_params_answer.nonce)
                 SecurityCheckMismatch.check(server_nonce == set_client_dh_params_answer.server_nonce)
-                server_nonce = server_nonce.to_bytes(16, "little", signed=True)
                 log.debug("Nonce fields check: OK")
 
                 # Step 9
-                server_salt = aes.xor(new_nonce[:8], server_nonce[:8])
+                server_salt = aes.xor(new_nonce[:8], server_nonce_bytes[:8])
 
                 log.debug(f"Server salt: {int.from_bytes(server_salt, 'little')}")
 
